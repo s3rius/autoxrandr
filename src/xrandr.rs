@@ -13,7 +13,7 @@ impl XrandrCmd {
         for arg in &self.args {
             cmd.arg(arg.clone());
         }
-        cmd.spawn()?;
+        cmd.spawn()?.wait()?;
         Ok(())
     }
 

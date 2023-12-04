@@ -4,14 +4,14 @@ pub mod err_print;
 pub mod state;
 pub mod xrandr;
 
-use std::str::FromStr;
+use std::{process::Child, str::FromStr};
 
 use clap::Parser;
 use x11rb::connection::Connection;
 
 use crate::{err_print::ErrPrint, state::State};
 
-pub fn exec_on_remap(on_remap: Option<&String>) -> anyhow::Result<()> {
+pub fn exec_on_remap(on_remap: Option<&String>) -> anyhow::Result<Option<Child>> {
     let on_remap = on_remap.as_ref().and_then(|on_remap| {
         let split = shlex::split(on_remap).err_print(format!(
             "Failed to parse on_remap command: `{:?}`",
@@ -28,9 +28,10 @@ pub fn exec_on_remap(on_remap: Option<&String>) -> anyhow::Result<()> {
         }
     });
     if let Some(mut cmd) = on_remap {
-        cmd.spawn()?;
+        Ok(Some(cmd.spawn()?))
+    } else {
+        Ok(None)
     }
-    Ok(())
 }
 
 fn main() -> anyhow::Result<()> {
@@ -49,28 +50,18 @@ fn main() -> anyhow::Result<()> {
     let screen = &conn.setup().roots[screen_num];
 
     println!("Autoxrandr started");
+    let mut process_handle = None;
     if cli.reapply {
         let state = State::from_screen(&conn, screen)?;
         if let Ok(previous) = db.get_state(&state.outputs_sign()) {
             previous.to_xrandr_cmd().exec()?;
-            exec_on_remap(cli.on_remap.as_ref())?;
+            process_handle = exec_on_remap(cli.on_remap.as_ref())?;
         }
     }
     loop {
         if let Ok(state) = State::from_screen(&conn, screen) {
-            let mut should_map = state.should_map();
-            if state.should_unmap() {
-                state
-                    .to_xrandr_cmd()
-                    .exec()
-                    .err_print("Cannot unmap screens".into())
-                    .ok();
-                exec_on_remap(cli.on_remap.as_ref())
-                    .err_print("Failed to execute on_remap command.".into())
-                    .ok();
-                should_map = true;
-            }
-            if should_map {
+            if state.should_map() || state.should_unmap() {
+                let mut was_remapped = false;
                 let previous_state = db.get_state(&state.outputs_sign());
                 if let Ok(previous_state) = previous_state {
                     match previous_state
@@ -78,16 +69,31 @@ fn main() -> anyhow::Result<()> {
                         .exec()
                         .err_print("Cannot restore previous state".into())
                     {
-                        Ok(()) => {
-                            exec_on_remap(cli.on_remap.as_ref())
-                                .err_print("Failed to execute on_remap command.".into())
-                                .ok();
+                        Ok(_) => {
+                            was_remapped = true;
                         }
                         Err(_) => {
                             db.remove_state(&previous_state)
                                 .err_print("Cannot remove previous state.".into())
                                 .ok();
                         }
+                    }
+                } else if state.should_unmap() {
+                    state
+                        .to_xrandr_cmd()
+                        .exec()
+                        .err_print("Cannot unmap screens".into())
+                        .ok();
+                    was_remapped = true;
+                }
+                if was_remapped {
+                    if let Some(previous) = process_handle.as_mut() {
+                        previous.kill().ok();
+                    }
+                    if let Ok(handle) = exec_on_remap(cli.on_remap.as_ref())
+                        .err_print("Failed to execute on_remap command while unmapping.".into())
+                    {
+                        process_handle = handle;
                     }
                 }
             } else {
