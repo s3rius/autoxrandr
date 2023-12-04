@@ -1,10 +1,11 @@
 use std::fmt::Display;
 
 pub trait ErrPrint {
+    #[must_use]
     fn err_print(self, msg: String) -> Self;
 }
 
-impl<I, T: Display> ErrPrint for Result<I, T> {
+impl<T, E: Display> ErrPrint for Result<T, E> {
     fn err_print(self, msg: String) -> Self {
         if let Err(err) = &self {
             eprintln!("{msg}. Cause: {err}");

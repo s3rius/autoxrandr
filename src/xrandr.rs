@@ -4,6 +4,7 @@ pub struct XrandrCmd {
 }
 
 impl XrandrCmd {
+    #[must_use]
     pub fn new(args: Vec<String>) -> Self {
         Self { args }
     }
@@ -16,8 +17,10 @@ impl XrandrCmd {
         cmd.spawn()?.wait()?;
         Ok(())
     }
+}
 
-    pub fn to_string(&self) -> String {
+impl ToString for XrandrCmd {
+    fn to_string(&self) -> String {
         format!("xrandr {}", self.args.join(" "))
     }
 }

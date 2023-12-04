@@ -59,83 +59,32 @@ impl State {
                 mode,
                 mapped,
                 rotate: rotate.into(),
-            })
+            });
         }
         outputs.sort_by(|left, right| right.name.cmp(&left.name));
         Ok(State { outputs })
     }
 
-    // pub fn unmap_dead(&self, conn: &RustConnection) -> anyhow::Result<()> {
-    //     for output in &self.outputs {
-    //         if output.is_connected {
-    //             continue;
-    //         }
-    //         if let Some(crtc) = output.crtc {
-    //             conn.randr_set_crtc_config(
-    //                 crtc,
-    //                 x11rb::CURRENT_TIME,
-    //                 x11rb::CURRENT_TIME,
-    //                 0,
-    //                 0,
-    //                 0,
-    //                 x11rb::protocol::randr::Rotation::ROTATE0,
-    //                 &[],
-    //             )?
-    //             .reply()?;
-    //         }
-    //     }
-    //     Ok(())
-    // }
-
-    // pub fn apply(&self, conn: &RustConnection) -> anyhow::Result<()> {
-    //     for output in &self.outputs {
-    //         if !output.is_connected {
-    //             continue;
-    //         }
-    //         if let Some(crtc) = output.crtc.and_then(|crtc| self.get_crtc(crtc)) {
-    //             conn.randr_set_crtc_config(
-    //                 crtc.id,
-    //                 x11rb::CURRENT_TIME,
-    //                 x11rb::CURRENT_TIME,
-    //                 crtc.x,
-    //                 crtc.y,
-    //                 crtc.mode,
-    //                 x11rb::protocol::randr::Rotation::from(crtc.rotation),
-    //                 &[output.id],
-    //             )?
-    //             .reply()?;
-    //         }
-    //     }
-    //     Ok(())
-    // }
-
-    // pub fn get_crtc(&self, id: u32) -> Option<CrtcInfo> {
-    //     for crtc in &self.crtcs {
-    //         if crtc.id == id {
-    //             return Some(crtc.clone());
-    //         }
-    //     }
-    //     None
-    // }
-
+    #[must_use]
     pub fn should_map(&self) -> bool {
         for output in &self.outputs {
             if output.is_connected && !output.mapped {
                 return true;
             }
         }
-        return false;
+        false
     }
 
+    #[must_use]
     pub fn should_unmap(&self) -> bool {
         for output in &self.outputs {
             if !output.is_connected && output.mapped {
                 return true;
             }
         }
-        return false;
+        false
     }
-
+    #[must_use]
     pub fn outputs_sign(&self) -> String {
         self.outputs
             .iter()
@@ -145,6 +94,7 @@ impl State {
             .join(",")
     }
 
+    #[must_use]
     pub fn to_xrandr_cmd(&self) -> XrandrCmd {
         let mut args = Vec::new();
         for output in &self.outputs {
@@ -157,15 +107,13 @@ impl State {
                 args.push("--primary".into());
             }
             if let Some((width, height)) = output.mode {
-                args.extend([String::from("--mode"), format!("{}x{}", width, height)]);
+                args.extend([String::from("--mode"), format!("{width}x{height}")]);
                 // args.push(format!("--mode {}x{}", width, height));
             }
             if let Some((x, y)) = output.position {
-                args.extend([String::from("--pos"), format!("{}x{}", x, y)]);
+                args.extend([String::from("--pos"), format!("{x}x{y}")]);
             }
             let rotate = match output.rotate {
-                0 => "normal",
-                1 => "normal",
                 2 => "left",
                 4 => "inverted",
                 8 => "right",

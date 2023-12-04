@@ -1,23 +1,14 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::state::State;
 
-// pub trait AutoRandrDB {
-//     fn get_db_connection(cache_dir: &PathBuf) -> anyhow::Result<sqlite::Connection>;
-// }
-
-// impl AutoRandrDB for sqlite::Connection {
-//     fn get_db_connection(cache_dir: &PathBuf) -> anyhow::Result<sqlite::Connection> {
-//         Ok(())
-//     }
-// }
 pub struct AutoRandrDB {
     db_connection: rusqlite::Connection,
 }
 
 impl AutoRandrDB {
-    pub fn new(cache_dir: &PathBuf) -> anyhow::Result<Self> {
-        let db_path = cache_dir.as_path().join(Path::new("modes.sqlite3"));
+    pub fn new(cache_dir: &Path) -> anyhow::Result<Self> {
+        let db_path = cache_dir.join(Path::new("modes.sqlite3"));
         let db_connection = rusqlite::Connection::open(db_path)?;
         db_connection.execute(
             "CREATE TABLE IF NOT EXISTS modes (
@@ -52,13 +43,12 @@ impl AutoRandrDB {
         if let Ok(previous_state) = previous_state {
             if previous_state == *state {
                 return Ok(());
-            } else {
-                self.db_connection.execute(
-                    "UPDATE modes SET state = ? WHERE outputs = ?",
-                    (&serde_json::to_string(state)?, &state.outputs_sign()),
-                )?;
-                return Ok(());
             }
+            self.db_connection.execute(
+                "UPDATE modes SET state = ? WHERE outputs = ?",
+                (&serde_json::to_string(state)?, &state.outputs_sign()),
+            )?;
+            return Ok(());
         }
         let state_json = serde_json::to_string(state)?;
         self.db_connection.execute(

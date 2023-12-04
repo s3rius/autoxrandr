@@ -13,10 +13,8 @@ use crate::{err_print::ErrPrint, state::State};
 
 pub fn exec_on_remap(on_remap: Option<&String>) -> anyhow::Result<Option<Child>> {
     let on_remap = on_remap.as_ref().and_then(|on_remap| {
-        let split = shlex::split(on_remap).err_print(format!(
-            "Failed to parse on_remap command: `{:?}`",
-            on_remap
-        ))?;
+        let split = shlex::split(on_remap)
+            .err_print(format!("Failed to parse on_remap command: `{on_remap:?}`",))?;
         if split.is_empty() {
             None
         } else {
@@ -46,7 +44,7 @@ fn main() -> anyhow::Result<()> {
 
     let db = db::AutoRandrDB::new(&cache_dir)?;
 
-    let (conn, screen_num) = x11rb::connect(cli.display.as_ref().map(|screen| screen.as_str()))?;
+    let (conn, screen_num) = x11rb::connect(cli.display.as_deref())?;
     let screen = &conn.setup().roots[screen_num];
 
     println!("Autoxrandr started");
