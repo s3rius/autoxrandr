@@ -7,7 +7,7 @@ pub mod xrandr;
 use std::{process::Child, str::FromStr};
 
 use clap::Parser;
-use x11rb::connection::Connection;
+use x11rb::{connection::Connection, protocol::randr::ConnectionExt};
 
 use crate::{err_print::ErrPrint, state::State};
 
@@ -42,22 +42,25 @@ fn main() -> anyhow::Result<()> {
     cache_dir.push(env!("CARGO_PKG_NAME"));
     std::fs::create_dir_all(&cache_dir)?;
 
-    let db = db::AutoRandrDB::new(&cache_dir)?;
+    let db = db::AutoXrandrDB::new(&cache_dir)?;
 
     let (conn, screen_num) = x11rb::connect(cli.display.as_deref())?;
     let screen = &conn.setup().roots[screen_num];
-
+    let outputs = conn
+        .randr_get_screen_resources(screen.root)?
+        .reply()?
+        .outputs;
     println!("Autoxrandr started");
     let mut process_handle = None;
     if cli.reapply {
-        let state = State::from_screen(&conn, screen)?;
+        let state = State::current(&conn, screen.root, &outputs)?;
         if let Ok(previous) = db.get_state(&state.outputs_sign()) {
             previous.to_xrandr_cmd().exec()?;
             process_handle = exec_on_remap(cli.on_remap.as_ref())?;
         }
     }
     loop {
-        if let Ok(state) = State::from_screen(&conn, screen) {
+        if let Ok(state) = State::current(&conn, screen.root, &outputs) {
             if state.should_map() || state.should_unmap() {
                 let mut was_remapped = false;
                 let previous_state = db.get_state(&state.outputs_sign());
@@ -86,7 +89,8 @@ fn main() -> anyhow::Result<()> {
                 }
                 if was_remapped {
                     if let Some(previous) = process_handle.as_mut() {
-                        previous.kill().ok();
+                        println!("Killing previous process");
+                        previous.kill()?;
                     }
                     if let Ok(handle) = exec_on_remap(cli.on_remap.as_ref())
                         .err_print("Failed to execute on_remap command while unmapping.".into())
@@ -99,7 +103,7 @@ fn main() -> anyhow::Result<()> {
                     .err_print("Cannot save current state.".into())
                     .ok();
             }
-            std::thread::sleep(std::time::Duration::from_secs(1));
         }
+        std::thread::sleep(std::time::Duration::from_secs(cli.delay));
     }
 }

@@ -2,11 +2,11 @@ use std::path::Path;
 
 use crate::state::State;
 
-pub struct AutoRandrDB {
+pub struct AutoXrandrDB {
     db_connection: rusqlite::Connection,
 }
 
-impl AutoRandrDB {
+impl AutoXrandrDB {
     pub fn new(cache_dir: &Path) -> anyhow::Result<Self> {
         let db_path = cache_dir.join(Path::new("modes.sqlite3"));
         let db_connection = rusqlite::Connection::open(db_path)?;

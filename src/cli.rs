@@ -1,5 +1,9 @@
 #[derive(Clone, Debug, clap::Parser)]
 pub struct Cli {
+    /// How often to check for changes in seconds.
+    #[arg(long, default_value = "1")]
+    pub delay: u64,
+
     /// Override screen to connect to.
     /// By default the DISPLAY environment variable is used.
     #[arg(long)]
