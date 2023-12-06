@@ -48,11 +48,11 @@ impl State {
                 let product_code = byteorder::LittleEndian::read_u16(&edid.data[10..12]);
                 let serial_number = byteorder::LittleEndian::read_u32(&edid.data[12..16]);
                 // We shift first number 32 bits to the left, making room for the next 32 bits.
-                let display_ucode = (manufacturer_code as u64) << 32
+                let display_ucode = (serial_number as u64) << 32
                     // We shift the second number 16 bits to the left, making room for the next 16 bits.
                     | (product_code as u64) << 16
                     // We don't need to shift the last number, because it's the last 32 bits.
-                    | (serial_number as u64);
+                    | (manufacturer_code as u64);
                 return Ok(display_ucode);
             }
         }
