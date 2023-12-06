@@ -7,7 +7,10 @@ pub mod xrandr;
 use std::{process::Child, str::FromStr};
 
 use clap::Parser;
-use x11rb::{connection::Connection, protocol::randr::ConnectionExt};
+use x11rb::{
+    connection::{Connection, RequestConnection},
+    protocol::{randr::ConnectionExt as RandrExt, screensaver::ConnectionExt as ScreensaverExt},
+};
 
 use crate::{err_print::ErrPrint, state::State};
 
@@ -59,7 +62,19 @@ fn main() -> anyhow::Result<()> {
             process_handle = exec_on_remap(cli.on_remap.as_ref())?;
         }
     }
+    conn.extension_information(x11rb::protocol::randr::X11_EXTENSION_NAME)?
+        .ok_or_else(|| anyhow::anyhow!("Cannot find randr extension"))?;
+    conn.extension_information(x11rb::protocol::screensaver::X11_EXTENSION_NAME)?
+        .ok_or_else(|| anyhow::anyhow!("Cannot find screensaver extension"))?;
     loop {
+        let screensaver = conn.screensaver_query_info(screen.root)?.reply()?;
+        let screensaver_state = x11rb::protocol::screensaver::State::from(screensaver.state);
+        if screensaver_state == x11rb::protocol::screensaver::State::ON
+            || screensaver_state == x11rb::protocol::screensaver::State::CYCLE
+        {
+            std::thread::sleep(std::time::Duration::from_secs(cli.delay));
+            continue;
+        }
         if let Ok(state) = State::current(&conn, screen.root, &outputs) {
             if state.should_map() || state.should_unmap() {
                 let mut was_remapped = false;
