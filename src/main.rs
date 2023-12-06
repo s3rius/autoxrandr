@@ -12,7 +12,7 @@ use x11rb::{
     protocol::{randr::ConnectionExt as RandrExt, screensaver::ConnectionExt as ScreensaverExt},
 };
 
-use crate::{err_print::ErrPrint, state::State};
+use crate::{err_print::ErrPrint, state::State, xrandr::XrandrCmd};
 
 pub fn exec_on_remap(on_remap: Option<&String>) -> anyhow::Result<Option<Child>> {
     let on_remap = on_remap.as_ref().and_then(|on_remap| {
@@ -58,7 +58,7 @@ fn main() -> anyhow::Result<()> {
     if cli.reapply {
         let state = State::current(&conn, screen.root, &outputs)?;
         if let Ok(previous) = db.get_state(&state.outputs_sign()) {
-            previous.to_xrandr_cmd().exec()?;
+            XrandrCmd::from(&previous).exec()?;
             process_handle = exec_on_remap(cli.on_remap.as_ref())?;
         }
     }
@@ -67,21 +67,25 @@ fn main() -> anyhow::Result<()> {
     conn.extension_information(x11rb::protocol::screensaver::X11_EXTENSION_NAME)?
         .ok_or_else(|| anyhow::anyhow!("Cannot find screensaver extension"))?;
     loop {
-        let screensaver = conn.screensaver_query_info(screen.root)?.reply()?;
-        let screensaver_state = x11rb::protocol::screensaver::State::from(screensaver.state);
-        if screensaver_state == x11rb::protocol::screensaver::State::ON
-            || screensaver_state == x11rb::protocol::screensaver::State::CYCLE
-        {
-            std::thread::sleep(std::time::Duration::from_secs(cli.delay));
-            continue;
+        // We respect the screensaver state, so we don't mess with it.
+        if let Ok(screen_cookie) = conn.screensaver_query_info(screen.root) {
+            if let Ok(screensaver) = screen_cookie.reply() {
+                let screensaver_state =
+                    x11rb::protocol::screensaver::State::from(screensaver.state);
+                if screensaver_state == x11rb::protocol::screensaver::State::ON
+                    || screensaver_state == x11rb::protocol::screensaver::State::CYCLE
+                {
+                    std::thread::sleep(std::time::Duration::from_secs(cli.delay));
+                    continue;
+                }
+            }
         }
         if let Ok(state) = State::current(&conn, screen.root, &outputs) {
             if state.should_map() || state.should_unmap() {
                 let mut was_remapped = false;
                 let previous_state = db.get_state(&state.outputs_sign());
                 if let Ok(previous_state) = previous_state {
-                    match previous_state
-                        .to_xrandr_cmd()
+                    match XrandrCmd::from(&previous_state)
                         .exec()
                         .err_print("Cannot restore previous state".into())
                     {
@@ -95,8 +99,7 @@ fn main() -> anyhow::Result<()> {
                         }
                     }
                 } else if state.should_unmap() {
-                    state
-                        .to_xrandr_cmd()
+                    XrandrCmd::from(&state)
                         .exec()
                         .err_print("Cannot unmap screens".into())
                         .ok();

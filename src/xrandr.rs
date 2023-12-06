@@ -1,3 +1,5 @@
+use crate::state::State;
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 pub struct XrandrCmd {
     args: Vec<String>,
@@ -16,6 +18,36 @@ impl XrandrCmd {
         }
         cmd.spawn()?.wait()?;
         Ok(())
+    }
+}
+
+impl From<&State> for XrandrCmd {
+    fn from(value: &State) -> Self {
+        let mut args = Vec::new();
+        for output in &value.outputs {
+            args.extend([String::from("--output"), output.name.clone()]);
+            if !output.is_connected {
+                args.push("--off".into());
+                continue;
+            }
+            if output.is_primary {
+                args.push("--primary".into());
+            }
+            if let Some((width, height)) = output.mode {
+                args.extend([String::from("--mode"), format!("{width}x{height}")]);
+            }
+            if let Some((x, y)) = output.position {
+                args.extend([String::from("--pos"), format!("{x}x{y}")]);
+            }
+            let rotate = match output.rotate {
+                2 => "left",
+                4 => "inverted",
+                8 => "right",
+                _ => "normal",
+            };
+            args.extend([String::from("--rotate"), rotate.into()]);
+        }
+        Self::new(args)
     }
 }
 
