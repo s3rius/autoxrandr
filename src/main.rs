@@ -7,6 +7,7 @@ pub mod xrandr;
 use std::{process::Child, str::FromStr};
 
 use clap::Parser;
+use cli::Cli;
 use x11rb::{
     connection::{Connection, RequestConnection},
     protocol::{randr::ConnectionExt as RandrExt, screensaver::ConnectionExt as ScreensaverExt},
@@ -35,9 +36,11 @@ pub fn exec_on_remap(on_remap: Option<&String>) -> anyhow::Result<Option<Child>>
     }
 }
 
-fn main() -> anyhow::Result<()> {
-    let cli = cli::Cli::parse();
-
+fn main_loop(cli: Cli) -> anyhow::Result<()> {
+    let lock_path = proc_lock::LockPath::FullPath("/tmp/autoxrandr.lock");
+    let _lock = proc_lock::try_lock(&lock_path).map_err(|_| {
+        anyhow::anyhow!("Cannot acquire lock. Is another instance of autoxrandr running?")
+    })?;
     let cache_dir = std::env::var("XDG_CACHE_HOME")
         .or(std::env::var("HOME").map(|home| format!("{home}/.cache")))
         .expect("Cannot find cache dir");
@@ -124,4 +127,24 @@ fn main() -> anyhow::Result<()> {
         }
         std::thread::sleep(std::time::Duration::from_secs(cli.delay));
     }
+}
+
+fn main() -> anyhow::Result<()> {
+    let cli = cli::Cli::parse();
+    if cli.background {
+        if let Ok(daemon) = fork::daemon(true, false) {
+            match daemon {
+                fork::Fork::Parent(_) => {
+                    println!("Autoxrandr started in background");
+                }
+                fork::Fork::Child => {
+                    main_loop(cli)?;
+                }
+            }
+        }
+        return Ok(());
+    } else {
+        main_loop(cli)?;
+    }
+    Ok(())
 }

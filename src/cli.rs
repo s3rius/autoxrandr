@@ -1,5 +1,8 @@
 #[derive(Clone, Debug, clap::Parser)]
 pub struct Cli {
+    #[arg(short, long, default_value = "false")]
+    pub background: bool,
+
     /// How often to check for changes in seconds.
     #[arg(long, default_value = "1")]
     pub delay: u64,
