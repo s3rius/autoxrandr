@@ -130,21 +130,21 @@ fn main_loop(cli: Cli) -> anyhow::Result<()> {
 }
 
 fn main() -> anyhow::Result<()> {
-    let cli = cli::Cli::parse();
-    if cli.background {
-        if let Ok(daemon) = fork::daemon(true, false) {
+    let args = Cli::parse();
+    if args.background {
+        if let Ok(daemon) = fork::daemon(true, true) {
             match daemon {
                 fork::Fork::Parent(_) => {
                     println!("Autoxrandr started in background");
                 }
                 fork::Fork::Child => {
-                    main_loop(cli)?;
+                    main_loop(args)?;
                 }
             }
         }
         return Ok(());
     } else {
-        main_loop(cli)?;
+        main_loop(args)?;
     }
     Ok(())
 }
