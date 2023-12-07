@@ -7,8 +7,6 @@ use x11rb::{
     rust_connection::RustConnection,
 };
 
-use crate::xrandr::XrandrCmd;
-
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Output {
     pub name: String,
