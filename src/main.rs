@@ -111,7 +111,10 @@ fn main_loop(cli: Cli) -> anyhow::Result<()> {
                 if was_remapped {
                     if let Some(previous) = process_handle.as_mut() {
                         println!("Killing previous process");
-                        previous.kill()?;
+                        previous
+                            .kill()
+                            .err_print("Cannot kill previous command".into())
+                            .ok();
                     }
                     if let Ok(handle) = exec_on_remap(cli.on_remap.as_ref())
                         .err_print("Failed to execute on_remap command while unmapping.".into())
